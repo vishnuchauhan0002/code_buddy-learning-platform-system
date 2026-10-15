@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: codebuddy-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: codebuddy
+      MYSQL_USER: codebuddy_user
+      MYSQL_PASSWORD: codebuddy_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: codebuddy-backend
+    restart: always
+    environment:
+      - PORT=5000
+      - DATABASE_URL=mysql+pymysql://codebuddy_user:codebuddy_pass@mysql:3306/codebuddy
+      - SECRET_KEY=codebuddy-prod-secret-key-2025
+      - JWT_SECRET_KEY=codebuddy-jwt-prod-signing-key
+      - JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
+      - JUDGE0_API_KEY=${JUDGE0_API_KEY:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+    ports:
+      - "5000:5000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: codebuddy-frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
